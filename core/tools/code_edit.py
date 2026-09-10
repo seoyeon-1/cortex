@@ -4,6 +4,7 @@ import subprocess
 from unidiff import PatchSet
 from core.tools.base import BaseTool, ToolResult
 import libcst as cst
+from typing import Optional
 
 class CodeEditTool(BaseTool):
     name = "edit_file"
@@ -18,11 +19,19 @@ class CodeEditTool(BaseTool):
         "required": ["path", "unified_diff", "thought"]
     }
 
-    def __init__(self, workspace_root: str):
+    def __init__(self, workspace_root: str, preflight: Optional[object] = None):
         self.workspace_root = workspace_root
+        self.preflight = preflight   # Phase 15.1 PreflightSimulator (optional)
 
     def execute(self, path: str, unified_diff: str, thought: str) -> ToolResult:
         full_path = os.path.join(self.workspace_root, path)
+
+        # Phase 15.1: static pre-flight (apply in memory + ast/lint/import checks) BEFORE
+        # touching git; deterministic failures cost zero LLM turns.
+        if self.preflight is not None:
+            pf = self.preflight.simulate_patch(path, unified_diff)
+            if not pf.ok:
+                return ToolResult(False, error=pf.as_error(), retryable=False)
 
         if not os.path.exists(full_path):
             return ToolResult(False, error=f"File not found: {path}")

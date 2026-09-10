@@ -5,10 +5,11 @@ from core.tools.file_ops import ReadFileTool, ListFilesTool
 
 class ContextBuilder:
     def __init__(self, workspace_root: str, max_tokens: int = 16000, model: str = "gpt-4o-mini",
-                 retriever=None):
+                 retriever=None, extra_system_prompt: str = ""):
         self.workspace_root = workspace_root
         self.max_tokens = max_tokens
         self.retriever = retriever  # Phase 2: HybridRetriever (optional, back-compat when None)
+        self.extra_system_prompt = extra_system_prompt  # Phase 15.2: protocol addendum
         try:
             self.enc = tiktoken.encoding_for_model(model)
         except KeyError:
@@ -92,8 +93,8 @@ class ContextBuilder:
         prompt_path = os.path.join(base_dir, "prompts", "system.md")
         if os.path.exists(prompt_path):
             with open(prompt_path, "r", encoding="utf-8") as f:
-                return f.read()
-        return "You are Cortex. Fix the code."
+                return f.read() + (self.extra_system_prompt or "")
+        return "You are Cortex. Fix the code." + (self.extra_system_prompt or "")
 
     def _trim_to_budget(self, messages: List[Dict]) -> List[Dict]:
         system_msg = messages[0]

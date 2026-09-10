@@ -429,3 +429,205 @@ def test_session_recorder_zstd(tmp_path):
     assert r.get_latest_step("s") == 3
     assert r.load_snapshot("s", 1).state["history"][0]["tool"] == "edit_file"
     assert r.list_steps("s")[0]["bytes"] < 4000                          # zstd actually compressed
+
+
+# ---------------------------------------------------------------------------
+# Phase 15 - preflight simulation, structured protocol, episodic few-shot, recovery
+# ---------------------------------------------------------------------------
+
+GOOD_DIFF = ("--- a/calc.py\n+++ b/calc.py\n@@ -1,3 +1,5 @@\n def divide(a, b):\n"
+             "+    if b == 0:\n+        return None\n     return a / b\n     return a / b\n")
+
+
+def _calc_ws(tmp_path):
+    (tmp_path / "calc.py").write_text("def divide(a, b):\n    return a / b\n    return a / b\n")
+    return tmp_path
+
+
+def test_preflight_good_patch_predicts_content(tmp_path):
+    from core.simulation import PreflightSimulator
+    ws = _calc_ws(tmp_path)
+    diff = ("--- a/calc.py\n+++ b/calc.py\n@@ -1,2 +1,4 @@\n def divide(a, b):\n"
+            "+    if b == 0:\n+        return None\n     return a / b\n")
+    r = PreflightSimulator(str(ws)).simulate_patch("calc.py", diff)
+    assert r.ok and not r.errors and "if b == 0" in r.predicted_files["calc.py"]
+
+
+def test_preflight_blocks_syntax_and_drift(tmp_path):
+    from core.simulation import PreflightSimulator
+    ws = _calc_ws(tmp_path)
+    bad = ("--- a/calc.py\n+++ b/calc.py\n@@ -1,2 +1,2 @@\n def divide(a, b):\n"
+           "-    return a / b\n+    return if b else\n")
+    drift = ("--- a/calc.py\n+++ b/calc.py\n@@ -1,2 +1,2 @@\n def DIVIDED(a, b):\n"
+             "-    return a / b\n+    return a // b\n")
+    s = PreflightSimulator(str(ws))
+    assert not s.simulate_patch("calc.py", bad).ok
+    assert not any(s.simulate_patch("calc.py", bad).predicted_files), "syntax error must yield no prediction"
+    r = s.simulate_patch("calc.py", drift)
+    assert not r.ok and "context mismatch" in r.errors[0] and "re-read" in r.errors[0]
+
+
+def test_preflight_lint_warn_vs_block(tmp_path):
+    from core.simulation import PreflightSimulator
+    ws = _calc_ws(tmp_path)
+    linty = ("--- a/calc.py\n+++ b/calc.py\n@@ -1,2 +1,3 @@\n+import os\n def divide(a, b):\n     return a / b\n")
+    w = PreflightSimulator(str(ws), {"lint": "warn"}).simulate_patch("calc.py", linty)
+    b = PreflightSimulator(str(ws), {"lint": "block"}).simulate_patch("calc.py", linty)
+    assert w.ok and any("F401" in x for x in w.warnings)          # unused import surfaces
+    assert not b.ok and any("F401" in x for x in b.errors)        # ...and blocks in strict mode
+    off = PreflightSimulator(str(ws), {"lint": "off"}).simulate_patch("calc.py", linty)
+    assert off.ok and not any("F401" in x for x in off.warnings)                 # lint silent
+
+
+def test_preflight_import_and_minidiff_warnings(tmp_path):
+    from core.simulation import PreflightSimulator
+    ws = _calc_ws(tmp_path)
+    d = ("--- a/calc.py\n+++ b/calc.py\n@@ -1,2 +1,8 @@\n+import totally_absent_pkg\n"
+         " def divide(a, b):\n"
+         "-    return a / b\n+    x1 = 1\n+    x2 = 2\n+    x3 = 3\n+    x4 = 4\n+    x5 = 5\n+    return x1 + a / b\n")
+    r = PreflightSimulator(str(ws), {"lint": "off", "max_changed_lines": 6}).simulate_patch("calc.py", d)
+    assert any("totally_absent_pkg" in w for w in r.warnings)
+    assert any("minimal-diff" in w for w in r.warnings)
+
+
+def test_edit_tools_run_preflight_before_disk(tmp_path):
+    from core.simulation import PreflightSimulator
+    from core.tools.code_edit import CodeEditTool
+    ws = _calc_ws(tmp_path)
+    bad = ("--- a/calc.py\n+++ b/calc.py\n@@ -1,2 +1,2 @@\n def divide(a, b):\n"
+           "-    return a / b\n+    return 1/0/0 broken(\n")
+    t = CodeEditTool(str(ws), preflight=PreflightSimulator(str(ws), {"lint": "off"}))
+    r = t.execute(path="calc.py", unified_diff=bad, thought="t")
+    assert not r.success and "Preflight failed" in r.error and r.retryable is False
+    plain = CodeEditTool(str(ws))  # back-compat: no preflight arg still constructs
+    assert plain.preflight is None
+
+
+def test_patch_set_preflight_all_or_nothing_before_worktree(tmp_path):
+    import subprocess as sp
+    from core.simulation import PreflightSimulator
+    from core.tools.patch_set import ApplyPatchSetTool
+    (tmp_path / "a.py").write_text("x = 1\n")
+    (tmp_path / "b.py").write_text("y = 2\n")
+    genv = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin"}
+    for c in (["git", "init", "-q"], ["git", "add", "."], ["git", "commit", "-qm", "base"]):
+        assert sp.run(c, cwd=tmp_path, check=True, env=genv).returncode == 0
+    good = ("--- a/a.py\n+++ b/a.py\n@@ -1 +1,2 @@\n x = 1\n+x = 2\n")
+    broken = ("--- a/b.py\n+++ b/b.py\n@@ -1 +1,2 @@\n y = 2\n+y = (1 if\n")
+    tool = ApplyPatchSetTool(str(tmp_path), preflight=PreflightSimulator(str(tmp_path), {"lint": "off"}))
+    r = tool.execute(patches=[{"path": "a.py", "unified_diff": good},
+                              {"path": "b.py", "unified_diff": broken}], thought="two-file", run_tests=False)
+    assert not r.success and r.error.startswith("preflight:") and "patch[1]" in r.error
+    assert (tmp_path / "a.py").read_text() == "x = 1\n"   # nothing touched, not even file 0
+
+
+def test_structured_parser_variants():
+    from core.parsing import StructuredOutputParser
+    p = StructuredOutputParser()
+    ok = ('Thought: fails at calc.py:2 ZeroDivisionError\nPlan:\n1. edit_file(calc.py) guard b==0\n'
+          'ToolCalls: [{"name": "edit_file", "arguments": {"path": "c.py", "unified_diff": "-x\\n+y", "thought": "g"}}]')
+    r = p.parse(ok)
+    assert r.ok and r.plan == ["edit_file(calc.py) guard b==0"]
+    fenced = 'Thought: t\nPlan:\n1. read\nToolCalls:\n```json\n[{"name": "read_file", "arguments": {"path": "a"}}]\n```'
+    assert p.parse(fenced).ok
+    assert p.parse('Thought: t\nPlan:\n1. e\nToolCalls: [{"name": "x", "arguments": {}}]').ok      # missing ] repaired
+    junk = p.parse("I'll fix it.")
+    assert junk.errors and all(k in " ".join(junk.errors) for k in ("Thought", "Plan", "ToolCalls"))
+    assert "FORMAT ERROR" in p.retry_prompt("; ".join(junk.errors))
+    short = p.parse('Thought: t\nPlan:\n1. only\nToolCalls: [{"name":"a","arguments":{}},{"name":"b","arguments":{}}]')
+    assert short.errors and "Plan shorter" in short.errors[0]
+
+
+def test_structured_recovery_executes_like_native():
+    import types
+    from core.parsing import StructuredOutputParser
+    p = StructuredOutputParser()
+    r = p.parse('Thought: t\nPlan:\n1. run\nToolCalls: [{"name": "run_tests", "arguments": {"thought": "verify"}}]')
+    calls = p.build_native_calls(r)
+    tc = calls[0]
+    import json as _j
+    assert tc.function.name == "run_tests" and _j.loads(tc.function.arguments) == {"thought": "verify"}
+
+
+def test_episodic_fewshot_facade(tmp_path):
+    from core.memory.episodic_store import EpisodicStore
+    es = EpisodicStore(str(tmp_path))
+    es.save_episode("fix div by zero", True,
+                    [{"tool": "edit_file", "args": {"path": "calc.py"}, "success": True},
+                     {"tool": "run_tests", "success": True}], "guard clause beats try/except")
+    es.save_episode("fix div by zero in modulo", False, [{"tool": "edit_file", "success": False}], "drifted")
+    hits = es.retrieve_similar("div by zero in calc", top_k=3, success_only=True)
+    assert hits and all(h.get("success") == "1" for h in hits)
+    fs = es.fewshot_for_task("div by zero in calc")
+    assert "REFERENCE CASES" in fs and "guard clause" in fs and "->" in fs and "drifted" not in fs
+    assert es.count() == 2
+
+
+def test_resilient_wrapper_retry_and_policy_shortcut():
+    from core.tools.base import ToolResult
+    from core.tools.resilient_wrapper import ResilientToolWrapper
+
+    class Flaky:
+        name = "run_tests"; description = ""; parameters = {}
+        def __init__(self): self.n = 0
+        def execute(self, **kw):
+            self.n += 1
+            return ToolResult(self.n >= 3, summary="green" if self.n >= 3 else "", error="" if self.n >= 3 else "collector hiccup")
+        def to_openai_function(self): return {"type": "function", "function": {"name": "run_tests"}}
+
+    fl = Flaky()
+    w = ResilientToolWrapper(fl, strategies=[{"action": "retry_flaky", "max": 2}], backoff_sec=0)
+    r = w.execute(thought="t")
+    assert r.success and fl.n == 3 and "recovery: succeeded on retry 2" in r.summary
+    assert w.name == "run_tests" and w.parameters == {} and w.to_openai_function()["function"]["name"] == "run_tests"
+
+    class Denied:
+        name = "shell"; description = ""; parameters = {}
+        def __init__(self): self.n = 0
+        def execute(self, **kw):
+            self.n += 1
+            return ToolResult(False, error="Tool 'kubectl' not allowed by security policy", retryable=False)
+    d = Denied()
+    r2 = ResilientToolWrapper(d, backoff_sec=0).execute(cmd="x")
+    assert not r2.success and d.n == 1                       # never retries a policy deny
+    assert not r2.success                                    # and never fabricates success
+
+    class Always:
+        name = "x"; description = ""; parameters = {}
+        def __init__(self): self.n = 0
+        def execute(self, **kw):
+            self.n += 1
+            return ToolResult(False, error="transient timeout")
+    a = Always()
+    r3 = ResilientToolWrapper(a, strategies=[{"action": "retry", "max": 1}], backoff_sec=0).execute()
+    assert not r3.success and a.n == 2 and "retries exhausted" in r3.summary
+
+
+def test_phase15_config_and_prompts_wired():
+    import yaml
+    cfg = yaml.safe_load(open(ROOT / "config.yaml", encoding="utf-8"))
+    assert cfg["preflight"]["enabled"] and cfg["preflight"]["lint"] == "warn"
+    assert cfg["structured_output"]["enabled"] and cfg["recovery"]["enabled"] and cfg["recovery"]["max_retries"] == 1
+    assert cfg["context"]["episodic_fewshot"] is True
+    assert cfg["llm"]["api_key"] == "YOUR_API_KEY_HERE"          # placeholder must survive
+    sysmd = open(ROOT / "prompts" / "system.md", encoding="utf-8").read()
+    for section in ("SELF-VERIFICATION CHECKLIST", "HYPOTHESIS LEDGER", "MINIMAL DIFF (HARD RULE)"):
+        assert section in sysmd
+    proto = open(ROOT / "prompts" / "react_structured.md", encoding="utf-8").read()
+    assert "CORTEX REASONING PROTOCOL" in proto and "ToolCalls:" in proto
+
+
+def test_context_builder_extra_system_prompt_back_compat(tmp_path):
+    from core.memory.context import ContextBuilder
+    plain = ContextBuilder(str(tmp_path), 4000, "gpt-4o-mini")
+    withextra = ContextBuilder(str(tmp_path), 4000, "gpt-4o-mini", extra_system_prompt="\nEXTRA-PROTOCOL-MARKER")
+    assert "EXTRA-PROTOCOL-MARKER" not in plain._load_system_prompt()
+    assert "EXTRA-PROTOCOL-MARKER" in withextra._load_system_prompt()
+    assert "CORTEX SYSTEM PROMPT" in withextra._load_system_prompt()      # base prompt kept first
+
+
+def test_verify_agent_cli():
+    r = subprocess.run([sys.executable, str(ROOT / "scripts" / "verify_agent.py"), "--help"],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0 and "--task" in r.stdout and "--repo" in r.stdout

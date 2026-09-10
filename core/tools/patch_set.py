@@ -32,9 +32,10 @@ class ApplyPatchSetTool(BaseTool):
         "required": ["patches", "thought"]
     }
 
-    def __init__(self, workspace_root: str, timeout: int = 120):
+    def __init__(self, workspace_root: str, timeout: int = 120, preflight=None):
         self.workspace_root = workspace_root
         self.timeout = timeout
+        self.preflight = preflight   # Phase 15.1 PreflightSimulator (optional)
 
     def execute(self, patches: List[Dict], thought: str = "", run_tests: bool = True) -> ToolResult:
         if not patches:
@@ -49,6 +50,13 @@ class ApplyPatchSetTool(BaseTool):
                     return ToolResult(False, error=f"patch[{i}] empty/invalid for {path}")
             except Exception as e:
                 return ToolResult(False, error=f"patch[{i}] invalid Unified Diff for {path}: {e}")
+
+        # Phase 15.1: one static pass over the whole set first - one gate, all-or-nothing,
+        # exactly like the git gate below, but free of subprocess/disk state.
+        if self.preflight is not None:
+            pf = self.preflight.simulate_patch_set(patches)
+            if not pf.ok:
+                return ToolResult(False, error="preflight: " + pf.as_error(), retryable=False)
 
         full_patch = "".join(p["unified_diff"].rstrip("\n") + "\n" for p in patches)
         tf = tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False, encoding="utf-8")

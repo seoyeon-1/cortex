@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 @dataclass
 class ToolResult:
@@ -8,6 +8,7 @@ class ToolResult:
     data: Any = None
     error: str = ""
     summary: str = ""
+    retryable: Optional[bool] = None   # Phase 15.4: False pins "never auto-retry"
 
     def to_dict(self) -> Dict:
         return asdict(self)

@@ -43,7 +43,13 @@ class _LanceEpisodeStore:
                 # schema/dim drift: drop & recreate (tip)
                 self.table = self.db.create_table(self.TABLE, data=rows, mode="overwrite")
         else:
-            self.table.add(rows)
+            try:
+                self.table.add(rows)
+            except Exception:
+                # schema drift (e.g. Phase 15 added success/trajectory cols): rebuild tip
+                merged = self.all() + list(rows)
+                self.db.create_table(self.TABLE, data=merged, mode="overwrite")
+                self.table = self.db.open_table(self.TABLE)
 
     def all(self) -> List[Dict]:
         if self.table is None:
@@ -132,7 +138,8 @@ class EpisodeStore:
             self.store = _JsonlEpisodeStore(root)
 
     def record(self, task: str, plan: str, patches: List[str], test_result: str,
-               reflection: str, git_commit_hash: str = "", timestamp: Optional[str] = None) -> Dict:
+               reflection: str, git_commit_hash: str = "", timestamp: Optional[str] = None,
+               success: Optional[bool] = None, trajectory: Optional[List[Dict]] = None) -> Dict:
         ep = {
             "id": uuid.uuid4().hex,
             "task": task,
@@ -142,6 +149,8 @@ class EpisodeStore:
             "reflection": reflection,
             "timestamp": timestamp or datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "git_commit_hash": git_commit_hash,
+            "success": "" if success is None else ("1" if success else "0"),
+            "trajectory": json.dumps(trajectory or [], ensure_ascii=False)[:2000],
         }
         vec = self.embedder.encode([ep["task"]])[0]
         ep["vector"] = [float(x) for x in np.asarray(vec, dtype=np.float32)]
@@ -152,12 +161,14 @@ class EpisodeStore:
             self.store.append([ep])
         return ep
 
-    def similarity_search(self, query: str, top_k: int = 3) -> List[Dict]:
+    def similarity_search(self, query: str, top_k: int = 3, success_only: bool = False) -> List[Dict]:
         q = np.asarray(self.embedder.encode([query])[0], dtype=np.float32)
         try:
-            hits = self.store.search(q, top_k)
+            hits = self.store.search(q, max(top_k * (3 if success_only else 1), 8))
         except Exception:
             hits = []
+        if success_only:
+            hits = [h for h in hits if str(h.get("success", "")) == "1"][:top_k]
         out = []
         for h in hits:
             h = {k: v for k, v in h.items() if k not in ("vector",)}
@@ -166,6 +177,48 @@ class EpisodeStore:
 
     def count(self) -> int:
         return self.store.count()
+
+    @staticmethod
+    def _summarize_trajectory(traj) -> str:
+        try:
+            steps = json.loads(traj) if isinstance(traj, str) else list(traj or [])
+        except Exception:
+            steps = []
+        parts = []
+        for s in steps[:10]:
+            if isinstance(s, dict):
+                tool = s.get("tool") or s.get("name") or "?"
+                arg = (s.get("args") or {}).get("path") if isinstance(s.get("args"), dict) else None
+                mark = "OK" if s.get("success", s.get("ok")) else "FAIL"
+                parts.append(f"{tool}({arg})" if arg else f"{tool}:{mark}")
+            else:
+                parts.append(str(s))
+        return " -> ".join(parts)
+
+    @classmethod
+    def format_as_fewshot(cls, episodes: List[Dict]) -> str:
+        """Render past SUCCESSFUL runs as worked examples (learn-from-experience shots)."""
+        if not episodes:
+            return ""
+        blocks = ["## REFERENCE CASES (Learn from these - past trajectories that worked)"]
+        for e in episodes:
+            outcome = ""
+            try:
+                tr = json.loads(e.get("test_result") or "{}")
+                outcome = f"tests: {tr.get('passed', '?')} passed / {tr.get('failed', '?')} failed"
+            except Exception:
+                pass
+            lesson = (e.get("reflection") or "").splitlines()[0][:200] if e.get("reflection") else "n/a"
+            blocks.append("\\n".join([
+                f"### Task: {(e.get('task') or '')[:140]}",
+                f"Trajectory: {cls._summarize_trajectory(e.get('trajectory')) or 'n/a'}",
+                f"Outcome: {outcome or 'n/a'} (commit {e.get('git_commit_hash') or 'n/a'})",
+                f"Key lesson: {lesson}",
+            ]))
+        return "\n---\n".join(blocks)
+
+    def fewshot_for(self, query: str, top_k: int = 2) -> str:
+        return self.format_as_fewshot(self.similarity_search(query, top_k=top_k, success_only=True))
 
     @staticmethod
     def as_context(episodes: List[Dict]) -> str:

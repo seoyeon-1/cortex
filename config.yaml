@@ -12,6 +12,7 @@ sandbox:
 context:
   max_file_tokens: 3000
   max_total_tokens: 16000
+  episodic_fewshot: true    # Phase 15.3: inject past successful trajectories as few-shot
 
 # Phase 4 - Observability (empty url = tool reports "not configured", never crashes)
 observability:
@@ -143,3 +144,23 @@ observability:
     enabled: true            # time-machine snapshots -> .cortex_memory/sessions.db (zstd)
 vcs:
   dry_run: true              # gitops: plan push/PR instead of executing (branch/commit policy always on)
+
+# Phase 15.1 - Preflight static simulation (LLM-cost-free error triage before git apply)
+preflight:
+  enabled: true
+  lint: warn               # off | warn | block  (ruff findings)
+  import_check: true       # flag imports that resolve nowhere (stdlib/site/local)
+  max_changed_lines: 12    # minimal-diff heuristic -> warning
+  lint_timeout_sec: 10
+
+# Phase 15.2 - Structured reasoning enforcement (Thought/Plan/ToolCalls recovery + protocol prompt)
+structured_output:
+  enabled: true             # parse text replies when native function-calling is absent
+  append_protocol_prompt: true
+
+# Phase 15.4 - Resilient tool execution: bounded auto-recovery on transient failures.
+# Policy/deterministic failures (guardrails, preflight, rollback) are NEVER retried.
+recovery:
+  enabled: true
+  max_retries: 1
+  backoff_sec: 0.2

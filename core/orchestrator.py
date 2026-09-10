@@ -32,7 +32,16 @@ class Orchestrator:
         # Base tools (manifest v1.0 contract; file_ops kept for back-compat, deprecated in prompt)
         self._register(ReadFileTool(workspace_root))
         self._register(ListFilesTool(workspace_root))
-        self._register(CodeEditTool(workspace_root))
+        # Phase 15.1: static pre-flight simulator (in-memory apply + ast/lint/imports), advisory-first.
+        self._preflight = None
+        _pf_cfg = config.get("preflight", {}) or {}
+        if _pf_cfg.get("enabled", True):
+            try:
+                from core.simulation import PreflightSimulator
+                self._preflight = PreflightSimulator(workspace_root, _pf_cfg)
+            except Exception as e:
+                console.print(f"[yellow]Preflight simulator unavailable ({e})[/yellow]")
+        self._register(CodeEditTool(workspace_root, preflight=self._preflight))
         self._register(TestRunnerTool(workspace_root, config["sandbox"]["timeout_seconds"]))
 
         # Phase 2: hybrid retrieval (graph + vectors). Degrade gracefully if indexable deps fail.
@@ -44,7 +53,8 @@ class Orchestrator:
         except Exception as e:
             console.print(f"[yellow]Retriever unavailable ({e}) - falling back to trace-based context.[/yellow]")
         self._register(SearchCodeTool(workspace_root, retriever=self.retriever))
-        self._register(ApplyPatchSetTool(workspace_root, timeout=config["sandbox"]["timeout_seconds"]))
+        self._register(ApplyPatchSetTool(workspace_root, timeout=config["sandbox"]["timeout_seconds"],
+                                         preflight=self._preflight))
 
         # Phase 3: persistent memory (episodic store / ADR journal / skill library) - cortex-side,
         # survives sandbox teardown. Degrades gracefully.
@@ -83,11 +93,26 @@ class Orchestrator:
         except Exception as e:
             console.print(f"[yellow]Phase 4 ops tools unavailable ({e})[/yellow]")
 
+        # Phase 15.2: structured-reasoning enforcement (parser fallback + protocol prompt).
+        so_cfg = config.get("structured_output", {}) or {}
+        self.structured = None
+        extra_sys = ""
+        if so_cfg.get("enabled", True):
+            try:
+                from core.parsing import StructuredOutputParser
+                self.structured = StructuredOutputParser()
+                if so_cfg.get("append_protocol_prompt", True):
+                    _pp = os.path.join(self.cortex_root, "prompts", "react_structured.md")
+                    if os.path.exists(_pp):
+                        extra_sys = "\n\n" + open(_pp, encoding="utf-8").read()
+            except Exception as e:
+                console.print(f"[yellow]Structured parser unavailable ({e})[/yellow]")
         self.context_builder = ContextBuilder(
             workspace_root, 
             config["context"]["max_total_tokens"], 
             config["llm"]["model"],
-            retriever=self.retriever
+            retriever=self.retriever,
+            extra_system_prompt=extra_sys
         )
         self.max_iterations = config["sandbox"]["max_iterations"]
         self.history: List[Dict] = []
@@ -203,6 +228,18 @@ class Orchestrator:
             self.registry = None
 
     def _register(self, tool) -> None:
+        # Phase 15.4: bounded auto-recovery for transient tool failures (policy denies never retry).
+        rec = self.config.get("recovery", {}) or {}
+        if rec.get("enabled") and not type(tool).__name__ == "ResilientToolWrapper":
+            try:
+                from core.tools.resilient_wrapper import RECOVERY_STRATEGIES, ResilientToolWrapper
+                strats = RECOVERY_STRATEGIES.get(tool.name, RECOVERY_STRATEGIES["default"])
+                if "max_retries" in rec:
+                    strats = [dict(s, max=int(rec["max_retries"])) for s in strats if int(s.get("max", 1))]
+                tool = ResilientToolWrapper(tool, strategies=strats,
+                                            backoff_sec=float(rec.get("backoff_sec", 0.2)))
+            except Exception as e:
+                console.print(f"[yellow]Recovery wrapper unavailable ({e})[/yellow]")
         self.tools[tool.name] = tool
 
     def run(self, task: str, resume: bool = False, task_id: Optional[str] = None) -> bool:
@@ -358,10 +395,27 @@ class Orchestrator:
                         self._done(task, test_result, False, iteration)
                         return False
 
+                if not msg.tool_calls and self.structured is not None and (msg.content or "").strip():
+                    # Phase 15.2: recover a protocol-conformant text reply (Thought/Plan/ToolCalls)
+                    # instead of wasting the iteration on a generic nudge.
+                    _sr = self.structured.parse(msg.content)
+                    if _sr.ok:
+                        try:
+                            msg.tool_calls = self.structured.build_native_calls(_sr)
+                            console.print(f"[cyan]Structured recovery: executing {len(_sr.tool_calls)} recovered call(s).[/cyan]")
+                            if self.session:
+                                self.session.emit("structured_recovery", iteration=iteration,
+                                                  calls=[c["name"] for c in _sr.tool_calls])
+                        except Exception:
+                            msg.tool_calls = None
                 if not msg.tool_calls:
                     console.print("[yellow]LLM did not call tools. Forcing action...[/yellow]")
                     messages.append({"role": "assistant", "content": msg.content or ""})
-                    messages.append({"role": "user", "content": "You MUST use tools (edit_file, run_tests) to proceed. Analyze the errors and produce a patch."})
+                    if self.structured is not None:
+                        _errs = "; ".join(self.structured.parse(msg.content or "").errors) or "no tool calls"
+                        messages.append({"role": "user", "content": self.structured.retry_prompt(_errs)})
+                    else:
+                        messages.append({"role": "user", "content": "You MUST use tools (edit_file, run_tests) to proceed. Analyze the errors and produce a patch."})
                     continue
 
                 for tc in msg.tool_calls:
@@ -712,6 +766,11 @@ class Orchestrator:
                 ctx = self.episodes.as_context(self.episodes.similarity_search(task, top_k=3))
                 if ctx:
                     blocks.append(ctx)
+                # Phase 15.3: successful past trajectories as worked few-shot examples
+                if (self.config.get("context", {}) or {}).get("episodic_fewshot", True):
+                    fs = self.episodes.fewshot_for(task, top_k=2)
+                    if fs:
+                        blocks.append(fs)
         except Exception:
             pass
         try:
@@ -759,7 +818,11 @@ class Orchestrator:
                 patches=[str(p.get("unified_diff", ""))[:800] for p in self._applied_patches],
                 test_result=json.dumps({k: int(data.get(k, 0) or 0) for k in ("passed", "failed", "errors")} | {"ok": success}),
                 reflection=(self._generate_reflection() if self.history else "") or ("green on first accepted patch set" if success else ""),
-                git_commit_hash=self._git_head())
+                git_commit_hash=self._git_head(),
+                success=bool(success),
+                trajectory=[{"tool": h.get("tool"), "success": h.get("success"),
+                             "args": {"path": (h.get("args") or {}).get("path", "")}}
+                            for h in self.history if "tool" in h][-25:])
             console.print(f"[green]Episode recorded:[/green] {self.episodes.count()} total in agent memory")
         except Exception as e:
             console.print(f"[yellow]Episode record failed (non-fatal): {e}[/yellow]")

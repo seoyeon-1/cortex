@@ -298,3 +298,22 @@ iteration's feedback. Every consensus vote lands in `docs/decisions/DEC-*.md` (t
 * `observability/session_recorder.py` - per-iteration state snapshots (pickle→zstd→SQLite);
   replay what the agent knew at step N (`recorder.list_steps/load_snapshot`), the backend of
   a "jump to 3 hours ago" debugger.
+
+## Phase 15 - Preflight simulation, structured reasoning, experience learning, resilient tools
+- **Preflight** (`core/simulation/preflight.py`, config `preflight:`): candidate unified diffs are applied
+  in memory and run through ast/ruff/import-resolution/minimal-diff checks BEFORE `git apply` - deterministic
+  breakage costs zero LLM turns. `lint: warn|block|off`; context drift returns an explicit "re-read" instruction.
+  Wired into both `edit_file` and `apply_patch_set` (one advisory gate per set, all-or-nothing).
+- **Structured protocol** (`core/parsing/structured_parser.py`, `prompts/react_structured.md`, config
+  `structured_output:`): when a model replies in text instead of function calls, the Thought/Plan/ToolCalls
+  format is parsed and EXECUTED (recovered calls run through the same guardrails); non-conforming replies get a
+  precise FORMAT ERROR retry prompt. `prompts/system.md` adds CoVe self-verification checklist, Hypothesis
+  Ledger and a hardened MINIMAL DIFF rule (mirrored by the preflight changed-line heuristic).
+- **Episodic few-shot** (`core/memory/episodic_store.py` facade over the Phase 3 store): runs are recorded with
+  `success` + compact `trajectory`; similar PAST SUCCESSFUL trajectories are rendered into
+  `## REFERENCE CASES` few-shot blocks injected at task start (config `context.episodic_fewshot`).
+- **Recovery** (`core/tools/resilient_wrapper.py`, config `recovery:`): bounded retries for transient tool
+  failures (flaky tests, timeouts) at the `_register` choke point - policy/deterministic failures (guardrails,
+  preflight, rollbacks) are never retried and success is never fabricated.
+- **Harness** `scripts/verify_agent.py --task ... --repo ...` -> JSON metrics (iterations, preflight_blocks,
+  guardrail_blocks, structured_recoveries, episode_recorded) for CI. Suite: `pytest tests/` = 45 tests offline.

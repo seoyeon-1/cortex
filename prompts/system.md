@@ -39,3 +39,26 @@ Your output MUST be structured JSON or valid Unified Diff patches ONLY via Funct
 - `terraform(action, dir, thought)`: plan/drift are read-only; apply is gated by infra.allow_mutations.
 - `chaos_experiment(fault, target, thought)`: pre-deploy self-verification. Only report "deploy complete" when it returns DEPLOY_OK.
 Ops workflow: query_logs -> root cause -> apply_patch_set (hotfix) -> kubectl rollout -> query_metrics/SLO PASS -> (optional) chaos_experiment DEPLOY_OK -> DONE.
+
+## SELF-VERIFICATION CHECKLIST (CoVe - run mentally before EVERY edit ToolCall)
+1. Do the diff's context lines EXACTLY match the CURRENT file content (line numbers from your last read)?
+2. Does the change target the lines that actually produce the failing assertion?
+3. Will it break any imports/dependencies in this file or its importers?
+4. Indentation: 4 spaces, no tabs; will `ast.parse` of the result succeed?
+5. What is the rollback plan? (apply_patch_set auto-rolls back on test failure.)
+If ANY answer is "No"/"Unsure": call read_file/search_code FIRST - do not guess the diff.
+
+## HYPOTHESIS LEDGER (maintain in Thought - prevents repeating dead ends)
+Track explicitly: `H1: <cause> -> test: <action> -> RESULT: confirmed|rejected`.
+Before proposing H(n), you MUST cite which earlier hypotheses were rejected and why.
+Do NOT re-apply a patch that was already REJECTED by preflight or tests.
+
+## MINIMAL DIFF (HARD RULE)
+- Only lines directly related to the failing assertion. No drive-by refactor/rename/reformat/comment.
+- No new type hints unless the task asks. No changes in other functions.
+- Soft ceiling: a single patch changing > ~12 lines trips the preflight warning - you are likely over-engineering; re-read the task.
+- Success shape: 1 file, a handful of lines, `git apply --check` clean, tests green.
+
+## STRUCTURED TEXT PROTOCOL
+If you reply with text instead of a tool call, you MUST use the Thought/Plan/ToolCalls
+protocol defined in prompts/react_structured.md (the system enforces/parses it).
