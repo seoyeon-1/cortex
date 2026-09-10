@@ -1,9 +1,9 @@
 # 1.6.1 does not exist on PyPI; 1.6.0 is the closest available
-libcst==1.6.0
+libcst>=1.6.0
 pyyaml==6.0.1
 GitPython==3.1.43
 pytest==8.2.2
-rich==13.7.1
+rich>=13.7.1
 openai==1.35.3
 tenacity==8.2.3
 tiktoken==0.7.0
@@ -25,8 +25,8 @@ jinja2==3.1.4
 pydantic==2.13.5
 bandit==1.9.4
 import-linter==2.15
-semgrep==1.176.1
-mutmut==3.7.0
+semgrep>=1.79
+mutmut>=3.4
 
 # --- Phase 10: durable runtime / RBAC / compression / OTel ---
 PyJWT==2.13.0
