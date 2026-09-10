@@ -1,0 +1,65 @@
+{
+ "ts": 1789020243.9,
+ "passed": 3,
+ "failed": 0,
+ "skipped": 0,
+ "details": [
+  {
+   "case": "g-101-refactor-accepted",
+   "pass": true,
+   "fails": [],
+   "wall_s": 6.2,
+   "success": true,
+   "iterations": 2,
+   "applied_files": [
+    "db/search.py",
+    "repo/user_repo.py",
+    "service/user_service.py"
+   ],
+   "run_id": "20260910_060406",
+   "stdout_tail": "7 @@ class UserService:\n     def get_user(self, user_id):\n         \"\"\"Fetch user from the DB repository.\"\"\"\n         return self.repo.fetch_user(user_id)\n+\n+    def search(self, pattern):\n+        \"\"\"Refactored entry point -> repo -> db layer.\"\"\"\n+        return self.repo.search(pattern)\nApply this patch to main repository? (y/N): Patch not applied. Saved in sandbox history.\n[SANDBOX] Cleaned up.\n",
+   "agents_reviewed": [
+    "architect",
+    "qa",
+    "security"
+   ],
+   "stop_reason": ""
+  },
+  {
+   "case": "g-102-governor-hard-stop",
+   "pass": true,
+   "fails": [],
+   "wall_s": 2.9,
+   "success": false,
+   "iterations": 1,
+   "applied_files": [],
+   "run_id": "20260910_060412",
+   "stdout_tail": "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 ITERATION 1/5 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nCOST GOVERNOR: cost limit: projected $0.0003 > $0.00025 - run stopped (hard \nlimit).\nEpisode recorded: 15 total in agent memory\nselfdev: failure mined -> .cortex_memory/feedback/dpo_pairs.jsonl\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 TASK FAILED \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nSandbox will be discarded automatically.\n[SANDBOX] Cleaned up.\n",
+   "agents_reviewed": [],
+   "stop_reason": "cost governor"
+  },
+  {
+   "case": "g-103-persona-routing",
+   "pass": true,
+   "fails": [],
+   "wall_s": 6.3,
+   "success": true,
+   "iterations": 2,
+   "applied_files": [
+    "db/search.py",
+    "repo/user_repo.py",
+    "service/user_service.py"
+   ],
+   "run_id": "20260910_060415",
+   "stdout_tail": "7 @@ class UserService:\n     def get_user(self, user_id):\n         \"\"\"Fetch user from the DB repository.\"\"\"\n         return self.repo.fetch_user(user_id)\n+\n+    def search(self, pattern):\n+        \"\"\"Refactored entry point -> repo -> db layer.\"\"\"\n+        return self.repo.search(pattern)\nApply this patch to main repository? (y/N): Patch not applied. Saved in sandbox history.\n[SANDBOX] Cleaned up.\n",
+   "agents_reviewed": [
+    "architect",
+    "dba",
+    "performance",
+    "qa",
+    "security"
+   ],
+   "stop_reason": ""
+  }
+ ]
+}

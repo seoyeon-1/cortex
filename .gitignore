@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.cortex_sandbox_*/
+.pytest_cache/
+test_project/
+.cortex_memory/
+workspace_graph.json
+.cortex_vector_db/
+ide/vscode/node_modules/
+ide/vscode/out/
+ide/vscode/*.vsix
+skills/candidates/
+skills/hardware/firmware/
+research/out/
+selfdev/out/

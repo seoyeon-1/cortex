@@ -1,0 +1,15 @@
+name: architect-agent
+key: architect
+version: 1.1.0
+persona: "🏗 Architect"
+description: Layer-direction + cycle enforcement, C4/SOLID advice, ADG generation.
+entrypoint: agents.architect:ArchitectAgent
+capabilities: [architecture-review, layer-lint, cycle-detection, adg-generator, c4-model]
+tools: [import-linter, pydeps]
+validation: "C4 모델 준수, SOLID 원칙 (레이어 하향 의존만 허용)"
+routing:
+  always: true
+  keywords: [refactor, architecture, module, package, dependency, migrate]
+config_defaults:
+  layers: [[api], [service], [repo], [db]]
+status: stable

@@ -1,0 +1,21 @@
+# Phase 13.1 - air-gapped image (multi-stage; stage 1 needs network ONCE, on the build host)
+# Stage 1: Builder (internet-ful environment only)
+FROM python:3.11-slim AS builder
+WORKDIR /wheels
+COPY requirements.txt .
+RUN pip download -r requirements.txt --dest /wheels
+# optional model weights for semantic retrieval (cortex degrades to the offline HashEmbedder
+# without them, so this layer is skippable in truly minimal deployments):
+# RUN pip install "huggingface_hub[cli]" && huggingface-cli download sentence-transformers/all-MiniLM-L6-v2 --local-dir /models/embedder
+
+# Stage 2: Runtime (air-gapped)
+FROM python:3.11-slim
+WORKDIR /app
+COPY --from=builder /wheels /wheels
+RUN pip install --no-index --find-links /wheels /wheels/* && rm -rf /wheels
+# COPY --from=builder /models /models          # when embedder weights were pulled
+COPY . /app
+ENV CORTEX_OFFLINE_MODE=1
+ENV TRANSFORMERS_OFFLINE=1
+ENV HF_HUB_OFFLINE=1
+ENTRYPOINT ["python", "main.py"]

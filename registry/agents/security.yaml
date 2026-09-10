@@ -1,0 +1,16 @@
+name: security-agent
+key: security
+version: 1.1.0
+persona: "🔒 Security Engineer"
+description: Vulnerability review of changed code; STRIDE threat modeling when asked.
+entrypoint: agents.security:SecurityAgent
+capabilities: [security-audit, sqli-scan, secret-scan, threat-modeling, owasp-top10, cve-check]
+tools: [semgrep, bandit, trivy, owasp_zap]
+validation: "CVE 0개, OWASP Top 10 통과"
+routing:
+  always: true
+  keywords: [security, sql, auth, token, secret, xss, injection, password]
+config_defaults:
+  block_on: [CRITICAL, HIGH, MEDIUM]
+  tools: [semgrep, bandit, builtin_sqli_scan]
+status: stable

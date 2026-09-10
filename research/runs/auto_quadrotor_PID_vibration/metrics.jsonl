@@ -1,0 +1,4 @@
+{"ts": 1789018771.748, "lit_source": "fixture", "papers": 3, "hypotheses": 3, "backend": "local-journal"}
+{"ts": 1789018771.748, "experiment": "pid_gain_search", "metric": "rms_vibration", "baseline": 0.0, "result": 0.0}
+{"ts": 1789018793.092, "lit_source": "fixture", "papers": 3, "hypotheses": 3, "backend": "local-journal"}
+{"ts": 1789018793.092, "experiment": "pid_gain_search", "metric": "rms_vibration", "baseline": 0.00163, "result": 0.00061}

@@ -1,0 +1,145 @@
+llm:
+  base_url: "https://api.openai.com/v1"
+  api_key: "YOUR_API_KEY_HERE"
+  model: "gpt-4o-mini"
+  temperature: 0.0
+  max_tokens: 4096
+
+sandbox:
+  max_iterations: 5
+  timeout_seconds: 120
+
+context:
+  max_file_tokens: 3000
+  max_total_tokens: 16000
+
+# Phase 4 - Observability (empty url = tool reports "not configured", never crashes)
+observability:
+  prometheus_url: "http://localhost:9090"
+  loki_url: "http://localhost:3100"
+  tempo_url: "http://localhost:3200"
+
+# Phase 4 - SLO rules used by deploy guard / chaos gate
+slo:
+  rules:
+    - name: error_rate
+      promql: "sum(rate(http_requests_total{status=~'5..'}[1m])) / sum(rate(http_requests_total[1m]))"
+      max: 0.01
+    - name: p99_ms
+      promql: "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[1m])) * 1000)"
+      max: 500.0
+
+# Phase 4 - Infra safety rails (mutations opt-in)
+infra:
+  allow_mutations: false
+  allowed_namespaces: ["default"]
+  timeout_seconds: 60
+  terraform_dir: "infra"
+  cloud: {}
+
+chaos:
+  dry_run: true
+  max_duration_seconds: 60
+  observe_seconds: 5
+
+# Phase 5 - Collaboration UX
+dashboard:
+  port: 8321
+  pricing:
+    gpt-4o-mini: { prompt: 0.15, completion: 0.60 }   # USD per 1M tokens
+    gpt-4o: { prompt: 2.50, completion: 10.00 }
+
+github:
+  enabled: false            # true = expose webhook receiver
+  repo_dir: "."             # target repo the bot operates on
+  dry_run: true             # true = journal the command plan, no gh calls
+
+# Phase 6 - Agent Society (specialist sub-agents + consensus policy)
+agents:
+  enabled: true
+  sub_agents:
+    security:
+      enabled: true
+      block_on: ["CRITICAL", "HIGH", "MEDIUM"]   # severities that veto the change
+      tools: [semgrep, bandit, builtin_sqli_scan]
+    architect:
+      enabled: true
+      layers: [["api"], ["service"], ["repo"], ["db"]]   # allowed import direction: upper -> lower only
+    qa:
+      enabled: true
+      coverage_min: 0            # 0 = off (needs pytest-cov); set e.g. 80 to gate
+      mutation: false           # true = run mutmut (slow) when installed
+    dba:
+      enabled: true
+      p99_target_ms: 10
+    performance:
+      enabled: true
+  policy:
+    # Consensus: weighted vote when verdicts conflict (e.g. qa pass vs security fail).
+    # veto_severity bypasses weights entirely.
+    weights: {security: 0.5, architect: 0.3, qa: 0.2}
+    consensus_threshold: 0.5
+    veto: true
+
+# Phase 6.5: sub-agent marketplace (packaged personas w/ semver + capabilities + routing)
+registry:
+  enabled: true
+  dir: registry          # manifests in registry/agents/*.yaml
+  rpc_port: 8331         # python -m registry.server  (JSON-RPC 2.0 + NDJSON stream)
+
+# Phase 6.5: conflicts become structured negotiations; every consensus vote is logged
+negotiation:
+  enabled: true
+
+# ---- Phase 7: hardware / research (everything simulated unless endpoint + opt-in) ----
+hardware:
+  dry_run: true            # NEVER flash real hardware from this build; twin-only
+  profiles: [ros2, carla, klipper, opentrons, secs-gem]
+research:
+  live: false              # true + wandb installed -> real runs; else local jsonl journal
+
+# ---- Phase 8: recursive self-improvement (proposals + data; merges stay human/tested) ----
+selfdev:
+  prompt_injection: true   # inject selfdev/out/promoted_prompt.md (created by: python -m selfdev.ga)
+  collect_failures: true   # failed runs -> .cortex_memory/feedback/dpo_pairs.jsonl (local only)
+
+# ---- Phase 9: economic agent (SIMULATED funds; real money intentionally impossible) ----
+econ:
+  enabled: true
+  balance_usd: 50.0        # simulated account
+  daily_cap_usd: 5.0
+  budget_usd: null         # per-run hard cap (e.g. 0.001) -> downgrade at 60%, stop at 100%
+  auto_accept_threshold: 0.75
+
+# ---- Phase 10.2: hard cost governance (omit/empty = governor off; limits are enforced, not advisory) ----
+cost: {}
+  # max_tokens: 1000000        # combined prompt+completion per task
+  # max_usd: 10.0              # per-task cost cap (uses pricing below or defaults)
+  # max_wall_time_sec: 3600
+  # max_calls_per_min: 30
+  # pricing:                   # per-1M-token (in, out) USD; merges over built-ins
+  #   "gpt-4o": [5.0, 15.0]
+  #   "gpt-4o-mini": [0.15, 0.60]
+
+# ---- Phase 11.1: multi-tenant server (RBAC JWT; dev secret -> OVERRIDE in prod) ----
+server:
+  jwt_secret: "CHANGE_ME_IN_PROD"
+  run_config: config.yaml        # pipeline config used when ?run=true
+  tenants:
+    team-a: {repo_path: "../my_project", repos: ["acme/my_project"]}
+    team-b: {repo_path: ".", repos: ["seoyeon-1/cortex", "acme/infra"]}
+
+# ---- Phase 10/14 runtime switches (all default-safe; eval needs nothing) ----
+runtime:
+  durable:
+    enabled: true            # event-sourced step log -> .cortex_memory/durable.db (+ --resume)
+guardrails:
+  enabled: true
+  mode: mask                 # mask = defang & continue (journal security.jsonl) | block = abort
+tracing:
+  enabled: true              # OTel spans -> .cortex_memory/traces/*.spans.jsonl (+OTLP if env endpoint set)
+observability:
+  recorder:
+    enabled: true            # time-machine snapshots -> .cortex_memory/sessions.db (zstd)
+vcs:
+  dry_run: true              # gitops: plan push/PR instead of executing (branch/commit policy always on)

@@ -1,0 +1,5 @@
+[
+ {"id":"2401.00001","title":"Sim-to-Real Transfer for Quadrotor PID Gain Scheduling","abstract":"We reduce vibration RMS by 34 percent on a micro-drone testbed by gain scheduling with a deterministic simulator. The controller outperforms manual tuning under gust noise.","url":"https://arxiv.org/abs/2401.00001"},
+ {"id":"2401.00002","title":"Auto-Research: LLM Agents that Draft and Run Experiments","abstract":"An agent pipeline reads papers, forms hypotheses and improves experiment throughput; we scale to 200 ablations overnight, outperforming human triage on selection metrics.","url":"https://arxiv.org/abs/2401.00002"},
+ {"id":"2401.00003","title":"Hardware-in-the-Loop Verification for Fleet Firmware Rollouts","abstract":"We propose a HIL state machine that flashes candidates and reduces botched rollouts. Rollback decisions are robust across 12k simulated devices.","url":"https://arxiv.org/abs/2401.00003"}
+]

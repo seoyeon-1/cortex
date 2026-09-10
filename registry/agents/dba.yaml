@@ -1,0 +1,16 @@
+name: dba-agent
+key: dba
+version: 1.0.0
+persona: "🗄 DBA / Data Eng"
+description: Query-plan analysis (EXPLAIN), index/partition advice, data-quality smoke tests.
+entrypoint: agents.dba:DbaAgent
+capabilities: [sql-review, explain-analyze, partition-advisor, dbt-test, data-quality]
+tools: [sqlite3, psql, dbt, great_expectations]
+validation: "Query P99 < 10ms (plan-based), 데이터 품질 테스트 통과"
+routing:
+  always: false
+  keywords: [sql, query, index, migration, schema, table, orm, dbt, partition, slow quer]
+  match_files: true
+config_defaults:
+  p99_target_ms: 10
+status: stable

@@ -1,0 +1,29 @@
+# Local (offline) semgrep ruleset for the Cortex SecurityAgent.
+rules:
+  - id: cortex-sqli-string-interpolation
+    languages: [python]
+    severity: ERROR
+    message: SQL query built with f-string/concatenation - use parameter binding
+    patterns:
+      - pattern-either:
+          - pattern: $C.execute(f"...", ...)
+          - pattern: $C.executemany(f"...", ...)
+          - pattern: |
+              $Q = f"..."
+              ...
+              $C.execute($Q, ...)
+  - id: cortex-dangerous-eval
+    languages: [python]
+    severity: WARNING
+    message: eval()/exec() on dynamic input
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+  - id: cortex-os-shell-injection
+    languages: [python]
+    severity: ERROR
+    message: os.system with interpolated command
+    patterns:
+      - pattern-either:
+          - pattern: os.system(f"...")
+          - pattern: os.popen(f"...")
