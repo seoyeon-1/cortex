@@ -164,3 +164,30 @@ recovery:
   enabled: true
   max_retries: 1
   backoff_sec: 0.2
+
+# Phase 16 - Secretary kit: stateful browser, OAuth2 mailbox, competition intel, form filler.
+# NOTE: this file holds PLACEHOLDERS only - real credentials live in env vars / ~/.cortex token files.
+secretary:
+  enabled: true
+  browser:
+    user_data_dir: "~/.cortex_browser_profile"   # persistent logins/cookies - NEVER commit
+    headless: false              # headful so a human can supervise captcha/2FA and final submit
+    rate_limit_sec: 1.5          # politeness delay randomized in [0.5, this] before navigation
+    allow_eval: false            # raw JS eval is opt-in
+    send_b64: false              # screenshots go to .cortex_browser/preview.png (IDE), not the LLM
+    timeout_sec: 60
+  email:
+    provider: "gmail"            # gmail | outlook | custom
+    email_addr: "you@example.com"
+    access_token_env: "CORTEX_EMAIL_ACCESS_TOKEN"   # preferred: live OAuth2 token in env
+    token_file: "~/.cortex/email_token.json"        # refresh_token JSON, auto-refreshed + rewritten
+    # app-password path uses EMAIL_APP_PASSWORD env var only (config value intentionally absent)
+    body_html: false
+    max_fetch: 20
+  intel:
+    scroll_passes: 3
+    fetch_timeout_sec: 20
+  form:
+    allow_submit: false          # 2nd safety switch: auto-submit needs BOTH this and confirm_before_submit=false
+    min_confidence: 0.8
+  user_profile: "~/.cortex/user_profile.json"

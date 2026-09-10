@@ -1,0 +1,14 @@
+{
+  "name": "홍길동",
+  "email": "hong@example.com",
+  "phone": "010-0000-0000",
+  "organization": "예시연구소",
+  "position": "연구원",
+  "address": "서울시 예구 테헤란로 123",
+  "bio": "AI/로보틱스 연구자. Python, C++, ROS2.",
+  "skills": ["Python", "C++", "ROS2"],
+  "attachments": {
+    "resume": "downloads/resume.pdf",
+    "portfolio": "downloads/portfolio.zip"
+  }
+}

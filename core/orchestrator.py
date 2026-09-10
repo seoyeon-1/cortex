@@ -174,6 +174,33 @@ class Orchestrator:
                               f"{' +extra:' + str(len(extra)) if extra else ''}[/dim]")
             except Exception as e:
                 console.print(f"[yellow]guardrails off ({e})[/yellow]")
+        # Phase 16: secretary kit - registered here (AgentLoop shim inherits), each tool degrades
+        # gracefully when playwright/credentials are absent; policy-allowed explicitly.
+        self.browser = self.email_tool = self.intel = self.form_filler = None
+        _sec_cfg = config.get("secretary", {}) or {}
+        if _sec_cfg.get("enabled", True):
+            try:
+                import types as _ty
+                from core.tools.secretary import (BrowserTool, CompetitionIntelTool, EmailTool,
+                                                   FormFillerTool)
+                self.browser = BrowserTool(workspace_root, _sec_cfg)
+                self.email_tool = EmailTool(workspace_root, _sec_cfg)
+                self.intel = CompetitionIntelTool(workspace_root, _sec_cfg, llm_cfg=config.get("llm", {}))
+                self.form_filler = FormFillerTool(workspace_root, _sec_cfg, llm_cfg=config.get("llm", {}))
+                _grec = lambda _s, p, c, m: (self.governor.record(self._durable_id, p, c, m)
+                                             if getattr(self, "governor", None)
+                                             and getattr(self, "_durable_id", None) else None)
+                _gov = _ty.SimpleNamespace(record=_grec)   # LLM sub-calls join the loop's budget
+                self.intel.governor = _gov
+                self.form_filler.governor = _gov
+                for _t in (self.browser, self.email_tool, self.intel, self.form_filler):
+                    self._register(_t)
+                if self.guard:
+                    self.guard.allow_extra_tools(["browser", "email", "analyze_competition", "fill_form"])
+                console.print("[dim]Phase 16 secretary: browser, email, analyze_competition, fill_form[/dim]")
+            except Exception as e:
+                console.print(f"[yellow]secretary tools unavailable ({e})[/yellow]")
+
         # Phase 10.1/14.2: durable event-sourced steps + time-machine snapshots.
         self.executor = None
         self.recorder = None

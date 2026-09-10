@@ -317,3 +317,34 @@ iteration's feedback. Every consensus vote lands in `docs/decisions/DEC-*.md` (t
   preflight, rollbacks) are never retried and success is never fabricated.
 - **Harness** `scripts/verify_agent.py --task ... --repo ...` -> JSON metrics (iterations, preflight_blocks,
   guardrail_blocks, structured_recoveries, episode_recorded) for CI. Suite: `pytest tests/` = 45 tests offline.
+
+## Phase 16 - Secretary kit (browser, mailbox, competition intel, form automation)
+- `core/tools/secretary/browser.py` — **BrowserTool** (`browser`): Playwright persistent-context session
+  (profile at `~/.cortex_browser_profile`, logins/cookies survive). goto/click/fill/scroll/press/
+  screenshot/get_dom/download/wait/eval/close; every action atomically refreshes
+  `<workspace>/.cortex_browser/preview.png` + `state.json` (the IDE contract), downloads are
+  filename-sanitized + extension-whitelisted, navigation has a randomized politeness delay,
+  raw `eval` is off unless `secretary.browser.allow_eval`. Degrades to a clear ToolResult when
+  playwright is missing - the agent loop never dies on it.
+- `email_client.py` — **EmailTool** (`email`): IMAP/SMTP with **XOAUTH2 first** (env token or
+  `~/.cortex/email_token.json` auto-refresh via stdlib), app-password only from `EMAIL_APP_PASSWORD`
+  env; search/read/send/download_attachments, IMAP query sanitizer, workspace-confined attachments,
+  credential redaction in every error path. Config ships placeholders (`you@example.com`) that are
+  refused loudly rather than dialed out to.
+- `competition_intel.py` — **CompetitionIntelTool** (`analyze_competition`): announcement URL ->
+  structured JSON (title/host/**deadline (KST)**/eligibility/required_documents/submission/contact/
+  schedule). Browser-render first with scroll passes, stdlib HTTP fallback, LLM forced-JSON with
+  brace-salvage parsing and an honest heuristic fallback (`partial: true`) when no LLM is reachable.
+  Cached per-URL under `data/competitions/<sha>.json`; `force_refresh` supported. Sub-calls are
+  metered into the loop's cost governor.
+- `form_filler.py` — **FormFillerTool** (`fill_form`): intel JSON + `user_profile` -> LLM field
+  mapping (heuristic profile-matcher offline) -> fills only confidence >= 0.8, low-confidence
+  fields are reported for manual review, NEVER guessed. **Dual submit lock**: no click unless
+  BOTH `confirm_before_submit=false` AND config `secretary.form.allow_submit=true`. `mode=email_draft`
+  returns a ready payload (`send_now:false`) for the email tool. Full mapping report in
+  `data/form_filler/last_report.json`.
+- All four register in the Orchestrator (AgentLoop shim) under `secretary.enabled` and are
+  auto-allowlisted in guardrails; skills-style templates: `data/secretary/user_profile.template.json`.
+- **VS Code** (`ide/vscode`): `CortexChatViewProvider` sidebar webview live-polls `.cortex_browser/`
+  (fs.watch + interval) and renders the browser screenshot + url/title/action badge in real time;
+  one-click task run + dashboard link. `npx tsc` green.

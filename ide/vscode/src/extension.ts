@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { CortexChatViewProvider } from './chatView';
 
 let client: LanguageClient | undefined;
 
@@ -17,6 +18,13 @@ export function activate(ctx: vscode.ExtensionContext) {
   const opts: LanguageClientOptions = { documentSelector: [{ scheme: 'file', language: 'python' }] };
   client = new LanguageClient('cortexLsp', 'Cortex LSP', server, opts);
   client.start();
+
+  // Phase 16: sidebar chat/preview webview (live browser screenshots from .cortex_browser/)
+  const chat = new CortexChatViewProvider(ctx);
+  ctx.subscriptions.push(vscode.window.registerWebviewViewProvider(CortexChatViewProvider.viewId, chat));
+  ctx.subscriptions.push(vscode.commands.registerCommand('cortex.focusChat', async () => {
+    await vscode.commands.executeCommand('cortex.chat.focus');
+  }));
 
   ctx.subscriptions.push(
     vscode.commands.registerCommand('cortex.runTask', async () => {
@@ -35,3 +43,6 @@ export function activate(ctx: vscode.ExtensionContext) {
   );
 }
 export function deactivate() { return client?.stop(); }
+
+// helper for the chat webview: reuse the dashboard command when posted
+

@@ -14,3 +14,9 @@ skills/candidates/
 skills/hardware/firmware/
 research/out/
 selfdev/out/
+
+# Phase 16 secretary: local session state & personal data - never commit
+.cortex_browser/
+downloads/
+data/competitions/
+data/form_filler/
