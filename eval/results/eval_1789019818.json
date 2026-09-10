@@ -1,0 +1,58 @@
+{
+ "ts": 1789019818.6,
+ "passed": 1,
+ "failed": 2,
+ "skipped": 0,
+ "details": [
+  {
+   "case": "g-101-refactor-accepted",
+   "pass": false,
+   "fails": [
+    "success False != True",
+    "expected file db/search.py not changed",
+    "persona security did not review (route miss)",
+    "persona architect did not review (route miss)",
+    "persona qa did not review (route miss)"
+   ],
+   "wall_s": 2.8,
+   "success": false,
+   "iterations": 0,
+   "applied_files": [],
+   "run_id": "",
+   "stdout_tail": "http://127.0.0.1:8757/v1\nRetriever indexed: {'chunks': 26, 'nodes': 38, 'edges': 51, 'embedder': \n'hash-embedder-384'}\nEpisodic memory: 7 episode(s)\nPhase 4 tools: query_metrics/logs/traces, kubectl, terraform, chaos_experiment\nAgent society online: security, architect, qa\nRegistry: 5 persona(s) -> architect v1.1.0, dba v1.0.0, performance v1.0.0, qa \nv1.1.0, security v1.1.0\n[SANDBOX] Cleaned up.\n",
+   "agents_reviewed": [],
+   "stop_reason": ""
+  },
+  {
+   "case": "g-102-governor-hard-stop",
+   "pass": true,
+   "fails": [],
+   "wall_s": 2.9,
+   "success": false,
+   "iterations": 0,
+   "applied_files": [],
+   "run_id": "",
+   "stdout_tail": "ndexed: {'chunks': 26, 'nodes': 38, 'edges': 51, 'embedder': \n'hash-embedder-384'}\nEpisodic memory: 7 episode(s)\nPhase 4 tools: query_metrics/logs/traces, kubectl, terraform, chaos_experiment\ncost governor: {'max_usd': 0.00025}\nAgent society online: security, architect, qa\nRegistry: 5 persona(s) -> architect v1.1.0, dba v1.0.0, performance v1.0.0, qa \nv1.1.0, security v1.1.0\n[SANDBOX] Cleaned up.\n",
+   "agents_reviewed": [],
+   "stop_reason": "cost governor"
+  },
+  {
+   "case": "g-103-persona-routing",
+   "pass": false,
+   "fails": [
+    "success False != True",
+    "persona security did not review (route miss)",
+    "persona dba did not review (route miss)",
+    "persona performance did not review (route miss)"
+   ],
+   "wall_s": 2.7,
+   "success": false,
+   "iterations": 0,
+   "applied_files": [],
+   "run_id": "",
+   "stdout_tail": "http://127.0.0.1:8757/v1\nRetriever indexed: {'chunks': 26, 'nodes': 38, 'edges': 51, 'embedder': \n'hash-embedder-384'}\nEpisodic memory: 7 episode(s)\nPhase 4 tools: query_metrics/logs/traces, kubectl, terraform, chaos_experiment\nAgent society online: security, architect, qa\nRegistry: 5 persona(s) -> architect v1.1.0, dba v1.0.0, performance v1.0.0, qa \nv1.1.0, security v1.1.0\n[SANDBOX] Cleaned up.\n",
+   "agents_reviewed": [],
+   "stop_reason": ""
+  }
+ ]
+}

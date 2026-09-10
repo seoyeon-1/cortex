@@ -1,0 +1,23 @@
+# Bounty board (simulated funds). Edit/replace with real issue urls; scoring stays transparent.
+- issue_url: https://github.com/acme/app/issues/42
+  title: "fix: search crash on empty query"
+  body: "small bug, good-first-issue; only touches repo/user_repo.py + service layer"
+  labels: [bug, good-first-issue]
+  reward_usd: 120
+  est_compute_usd: 0.05
+  scope_files: [repo/user_repo.py, service/user_service.py]
+  local_repo: ../my_project
+- issue_url: https://github.com/acme/app/issues/43
+  title: "rewrite the entire monolith in another language"
+  body: "migrate every service at once; hardware-in-the-loop required"
+  labels: [epic]
+  reward_usd: 900
+  est_compute_usd: 3.0
+  scope_files: [a.py, b.py, c.py, d.py, e.py, f.py]
+- issue_url: https://github.com/acme/app/issues/44
+  title: "add rate limit middleware"
+  body: "docs update + tests expected"
+  labels: [enhancement, test]
+  reward_usd: 40
+  est_compute_usd: 0.02
+  scope_files: [api/routes.py]

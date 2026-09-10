@@ -1,0 +1,66 @@
+{
+  "name": "cortex-vscode",
+  "displayName": "Cortex - Autonomous Coding Agent",
+  "version": "0.1.0",
+  "publisher": "cortex",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:python",
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onView:cortex.chat"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cortex.runTask",
+        "title": "Cortex: Run Task on This Repo"
+      },
+      {
+        "command": "cortex.openDashboard",
+        "title": "Cortex: Open Live Dashboard"
+      },
+      {
+        "command": "cortex.focusChat",
+        "title": "Cortex: Focus Agent Chat / Browser Preview"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cortex",
+          "title": "Cortex",
+          "icon": "media/cortex.svg"
+        }
+      ]
+    },
+    "views": {
+      "cortex": [
+        {
+          "type": "webview",
+          "id": "cortex.chat",
+          "name": "Cortex Agent"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}

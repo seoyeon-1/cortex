@@ -1,0 +1,15 @@
+name: performance-agent
+key: performance
+version: 1.0.0
+persona: "⚡ Performance Eng"
+description: CPU profile hotspots, flame-text graphs, optional load tests.
+entrypoint: agents.perf:PerfAgent
+capabilities: [cpu-profile, flamegraph, load-test, memory-audit]
+tools: [cProfile, py-spy, locust]
+validation: "Bottleneck 제거, Top-Hotspot 누적비용 30% 감소 목표"
+routing:
+  always: false
+  keywords: [perf, performance, latency, slow, timeout, memory, cpu, cache, flame, profil, optimi]
+config_defaults:
+  top_n: 8
+status: stable

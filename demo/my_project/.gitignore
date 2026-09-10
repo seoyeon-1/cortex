@@ -1,0 +1,5 @@
+__pycache__/
+.pytest_cache/
+workspace_graph.json
+.cortex_vector_db/
+.cortex_sandbox_*/

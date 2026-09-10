@@ -1,0 +1,36 @@
+# 1.6.1 does not exist on PyPI; 1.6.0 is the closest available
+libcst>=1.6.0
+pyyaml==6.0.1
+GitPython==3.1.43
+pytest==8.2.2
+rich>=13.7.1
+openai==1.35.3
+tenacity==8.2.3
+tiktoken==0.7.0
+unidiff==0.7.5
+# transitive pin: openai==1.35.3 breaks on httpx>=0.28 (removed proxies kwarg)
+httpx==0.27.2
+# --- Phase 2: Code Knowledge Graph & Hybrid Retriever ---
+tree-sitter==0.26.0
+tree-sitter-python==0.25.0
+tree-sitter-javascript==0.25.0
+tree-sitter-typescript==0.23.2
+networkx==3.6.1
+lancedb==0.38.0
+qdrant-client==1.19.0
+numpy==2.4.6
+# --- Phase 3: Skills (Jinja2 templates) ---
+jinja2==3.1.4
+# --- Phase 6: Agent Society & Specialization ---
+pydantic==2.13.5
+bandit==1.9.4
+import-linter==2.15
+semgrep>=1.79
+mutmut>=3.4
+
+# --- Phase 10: durable runtime / RBAC / compression / OTel ---
+PyJWT==2.13.0
+zstandard==0.25.0
+opentelemetry-api==1.37.0
+opentelemetry-sdk==1.37.0
+ruff>=0.4
